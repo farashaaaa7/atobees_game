@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>أتوبيس كومبليت - نظام الغرف الأونلاين</title>
+    <!-- استدعاء فايربيس للربط اللحظي -->
+    <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-database-compat.js"></script>
+    <style>
+        body {
+            font-family: 'Tahoma', sans-serif;
+            background: linear-gradient(135deg, #1f4068, #162447);
+            color: #fff;
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+        }
+        .game-container {
+            background: rgba(255, 255, 255, 0.08);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            padding: 25px;
+            border-radius: 20px;
+            width: 100%;
+            max-width: 500px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.4);
+        }
+        h2 { text-align: center; color: #ffeb3b; margin-bottom: 10px; }
+        .info-box {
+            background: rgba(0,0,0,0.3);
+            padding: 12px;
+            border-radius: 10px;
+            text-align: center;
+            font-size: 18px;
+            margin-bottom: 20px;
+            border: 1px dashed #ffeb3b;
+        }
+        .current-letter { font-size: 32px; color: #e43f5a; font-weight: bold; }
+        .input-group { margin-bottom: 12px; }
+        label { display: block; margin-bottom: 4px; font-size: 14px; color: #a7c5eb; }
+        input {
+            width: 100%;
+            padding: 12px;
+            border-radius: 8px;
+            border: none;
+            background: rgba(255,255,255,0.9);
+            color: #333;
+            font-size: 16px;
+            box-sizing: border-box;
+        }
+        .btn {
+            width: 100%;
+            padding: 14px;
+            background-color: #e43f5a;
+            color: white;
+            border: none;
+            border-radius: 10px;
+            font-size: 18px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: 0.3s;
+            margin-top: 15px;
+            -webkit-tap-highlight-color: transparent;
+            touch-action: manipulation;
+        }
+        .btn:active { transform: scale(0.98); }
+        .btn-green { background-color: #27ae60; }
+        .room-box { background: rgba(0,0,0,0.2); padding: 15px; border-radius: 12px; margin-bottom: 15px; }
+    </style>
+</head>
+<body>
+
+    <div class="game-container">
+        <h2>🚌 أتوبيس كومبليت (أونلاين جماعي) 🌐</h2>
+        
+        <!-- شاشة تسجيل الدخول وإنشاء الغرفة -->
+        <div id="lobby-screen">
+            <div class="input-group">
+                <label>اسمك:</label>
+                <input type="text" id="player-name" placeholder="مثلاً: مريم">
+            </div>
+
+            <div class="room-box">
+                <button class="btn btn-green" onclick="createRoom()">إنشاء غرفة جديدة 🎮</button>
+                <hr style="border: 0.5px solid rgba(255,255,255,0.2); margin: 15px 0;">
+                <label>أو انضمي لغرفة صديقتك:</label>
+                <input type="text" id="room-code-input" placeholder="اكتبي كود الغرفة هنا...">
+                <button class="btn" onclick="joinRoom()">انضمام للغرفة 🚀</button>
+            </div>
+        </div>
+
+        <!-- شاشة الانتظار داخل الغرفة -->
+        <div id="waiting-screen" style="display: none; text-align: center;">
+            <p>أهلاً بكِ يا <span id="display-name" style="color: #ffeb3b; font-weight: bold;"></span></p>
+            <div class="info-box">
+                كود الغرفة الخاص بكم:<br>
+                <span id="room-code-display" style="font-size: 26px; color: #2ecc71; font-weight: bold;">---</span>
+                <p style="font-size: 12px; color: #ccc; margin-top: 5px;">ابعتي الكود ده لصاحباتك عشان يدخلوا معاكِ!</p>
+            </div>
+            <p>البنات الموجودين في الغرفة:</p>
+            <ul id="players-list" style="list-style: none; padding: 0; color: #a7c5eb;"></ul>
+            <button class="btn btn-green" id="start-game-btn" style="display: none;" onclick="startNewRound()">بدء الجولة الأولى 🎯</button>
+        </div>
+
+        <!-- شاشة اللعبة الفعلية -->
+        <div id="game-screen" style="display: none;">
+            <div class="info-box">
+                الحرف المشترك للجميع: <span id="target-letter" class="current-letter">-</span>
+            </div>
+
+            <div class="input-group">
+                <label>إنسان:</label>
+                <input type="text" id="ans-human" placeholder="اسم إنسان...">
+            </div>
+            <div class="input-group">
+                <label>حيوان:</label>
+                <input type="text" id="ans-animal" placeholder="اسم حيوان...">
+            </div>
+            <div class="input-group">
+                <label>نبات:</label>
+                <input type="text" id="ans-plant" placeholder="اسم نبات...">
+            </div>
+            <div class="input-group">
+                <label>جماد:</label>
+                <input type="text" id="ans-object" placeholder="اسم جماد...">
+            </div>
+            <div class="input-group">
+                <label>بلاد:</label>
+                <input type="text" id="ans-country" placeholder="اسم بلد...">
+            </div>
+
+            <button class="btn btn-green" onclick="submitAnswers()">🛑 أتوبيس كومبليت (خلصت)!</button>
+        </div>
+    </div>
+
+    <script>
+        const firebaseConfig = {
+            databaseURL: "https://atobees-game-default-rtdb.firebaseio.com/"
+        };
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.database();
+
+        let playerName = "";
+        let roomCode = "";
+        let isHost = false;
+
+        const availableLetters = ['أ', 'ب', 'ت', 'ج', 'م', 'س', 'ر', 'ل'];
+
+        function createRoom() {
+            playerName = document.getElementById('player-name').value.trim();
+            if (!playerName) { alert('اكتبي اسمك الأول!'); return; }
+            
+            roomCode = Math.floor(1000 + Math.random() * 9000).toString();
+            isHost = true;
+
+            db.ref('rooms/' + roomCode + '/created').set(true);
+            db.ref('rooms/' + roomCode + '/players/' + playerName).set({ score: 0 });
+
+            enterWaitingScreen();
+            document.getElementById('start-game-btn').style.display = 'block';
+            listenToRoom();
+        }
+
+        function joinRoom() {
+            playerName = document.getElementById('player-name').value.trim();
+            roomCode = document.getElementById('room-code-input').value.trim();
+
+            if (!playerName || !roomCode) { alert('الرجاء كتابة الاسم وكود الغرفة!'); return; }
+
+            db.ref('rooms/' + roomCode).once('value', (snapshot) => {
+                if (snapshot.exists()) {
+                    db.ref('rooms/' + roomCode + '/players/' + playerName).set({ score: 0 });
+                    enterWaitingScreen();
+                    listenToRoom();
+                } else {
+                    alert('كود الغرفة غير صحيح أو الغرفة غير موجودة!');
+                }
+            });
+        }
+
+        function enterWaitingScreen() {
+            document.getElementById('lobby-screen').style.display = 'none';
+            document.getElementById('waiting-screen').style.display = 'block';
+            document.getElementById('room-code-display').innerText = roomCode;
+            document.getElementById('display-name').innerText = playerName;
+        }
+
+        function listenToRoom() {
+            db.ref('rooms/' + roomCode + '/players').on('value', (snapshot) => {
+                const players = snapshot.val();
+                let listHtml = '';
+                for (let p in players) {
+                    listHtml += `<li>✨ ${p}</li>`;
+                }
+                document.getElementById('players-list').innerHTML = listHtml;
+            });
+
+            db.ref('rooms/' + roomCode + '/currentLetter').on('value', (snapshot) => {
+                const letter = snapshot.val();
+                if (letter) {
+                    document.getElementById('waiting-screen').style.display = 'none';
+                    document.getElementById('game-screen').style.display = 'block';
+                    document.getElementById('target-letter').innerText = letter;
+                }
+            });
+        }
+
+        function startNewRound() {
+            const randomLetter = availableLetters[Math.floor(Math.random() * availableLetters.length)];
+            db.ref('rooms/' + roomCode + '/currentLetter').set(randomLetter);
+        }
+
+        function submitAnswers() {
+            const human = document.getElementById('ans-human').value.trim();
+            const animal = document.getElementById('ans-animal').value.trim();
+            const plant = document.getElementById('ans-plant').value.trim();
+            const obj = document.getElementById('ans-object').value.trim();
+            const country = document.getElementById('ans-country').value.trim();
+
+            if (!human && !animal && !plant && !obj && !country) {
+                alert('اكتبي كلمة واحدة على الأقل قبل إعلان إنهاء الجولة!');
+                return;
+            }
+
+            alert(`أهلاً يا ${playerName}! تم إرسال إجاباتك بنجاح، في انتظار نتائج باقي الشلة في الغرفة.`);
+        }
+    </script>
+
+</body>
+</html>
